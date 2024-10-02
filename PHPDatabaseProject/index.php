@@ -42,6 +42,18 @@ try{
     
     $transaction_id = htmlspecialchars(filter_input(INPUT_POST, "transaction_id"));
     
+    $name_update = htmlspecialchars(filter_input(INPUT_POST, "name_update"));
+    $email_update = htmlspecialchars(filter_input(INPUT_POST, "email_update"));
+    
+    $name_delete = htmlspecialchars(filter_input(INPUT_POST, "name_delete"));
+    $email_delete = htmlspecialchars(filter_input(INPUT_POST, "email_delete"));
+    
+    $transaction_update = htmlspecialchars(filter_input(INPUT_POST, "transaction_update"));
+    $symbol_update = htmlspecialchars(filter_input(INPUT_POST, "symbol_update"));
+    $quantity_update = htmlspecialchars(filter_input(INPUT_POST, "quantity_update"));
+    
+    $found_transaction = false;
+    
     
     if( $action == "insert" && $symbol != "" && $name != "" && $current_price != 0){
         /* bad way to do - SQL injection risk - don't plug values into query
@@ -59,12 +71,14 @@ try{
         $statement->bindValue(":name", $name);
         $statement->bindValue(":current_price", $current_price);
         
-        $statement->execute();
+        if($statement->execute()){
+            $statement->closeCursor();
+        }else{
+            echo "<p>Error adding stock.</p>";
+        }
         
-        $statement->closeCursor();
     }else if($action == "update" && $symbol != "" && $name != "" && $current_price != 0){
-        $query = "update stocks set name = :name, current_price = :current_price "
-               . "where symbol = :symbol";
+        $query = "update stocks set name = :name, current_price = :current_price where symbol = :symbol";
         
         //bind values
         $statement = $database->prepare($query);
@@ -72,45 +86,75 @@ try{
         $statement->bindValue(":name", $name);
         $statement->bindValue(":current_price", $current_price);
         
-        $statement->execute();
-        
-        $statement->closeCursor();
+        if($statement->execute()){
+            $statement->closeCursor();
+        }else{
+            echo "<p>Error updating stock.</p>";
+        }
         
     }else if($action == "delete" && $symbol != "" ){
-        $query = "delete from stocks "
-               . "where symbol = :symbol";
+        $query = "delete from stocks where symbol = :symbol";
         
         //bind values
         $statement = $database->prepare($query);
         $statement->bindValue(":symbol", $symbol);
         
-        $statement->execute();
-        
-        $statement->closeCursor();
+        if($statement->execute()){
+            $statement->closeCursor();
+        }else{
+            echo "<p>Error deleting stock.</p>";
+        }
         
     }else if($action == "add_user" && $users_name != "" && $email_address != "" && $cash_balance != ""){
-        $query_users = "INSERT INTO users ( name, email_address, cash_balance) "
-               . "VALUES (:users_name, :email_address, :cash_balance)";
+        $query_users = "INSERT INTO users ( name, email_address, cash_balance) VALUES (:users_name, :email_address, :cash_balance)";
         
         //bind values
-        $statement_users = $database->prepare($query_users);
-        $statement_users->bindValue(":users_name", $users_name);
-        $statement_users->bindValue(":email_address", $email_address);
-        $statement_users->bindValue(":cash_balance", $cash_balance);
+        $statement = $database->prepare($query_users);
+        $statement->bindValue(":users_name", $users_name);
+        $statement->bindValue(":email_address", $email_address);
+        $statement->bindValue(":cash_balance", $cash_balance);
             
-        $statement_users->execute();
+        if($statement->execute()){
+            $statement->closeCursor();
+        }else{
+            echo "<p>Error adding user.</p>";
+        }
         
-        $statement_users->closeCursor();
+    }else if($action == "update_user" && $name_update != "" && $email_update != ""){
+        $query = "update users set name = :name_update, email_address = :email_update "
+               . "where name = :name_update || email_address = :email_update";
         
+        //bind values
+        $statement = $database->prepare($query);
+        $statement->bindValue(":name_update", $name_update);
+        $statement->bindValue(":email_update", $email_update);
+        
+        if($statement->execute()){
+            $statement->closeCursor();
+        }else{
+            echo "<p>Error updating user.</p>";
+        }
+        
+    }else if($action == "delete_user" && $name_delete != "" && $email_delete != "" ){
+        $query = "delete from users where name = :name_delete && email_address = :email_delete";
+        
+        //bind values
+        $statement = $database->prepare($query);
+        $statement->bindValue(":name_delete", $name_delete);
+        $statement->bindValue(":email_delete", $email_delete);
+        
+        if($statement->execute()){
+            $statement->closeCursor();
+        }else{
+            echo "<p>Error deleting stock.</p>";
+        }
+            
     }else if($action == "buy" && $user_id != "" && $symbol != "" && $quantity != ""){    
         foreach($users as $user){
             if ($user['id'] == $user_id){
                 foreach($stocks as $stock){
                     if($stock['symbol'] == $symbol){
                         if($user['cash_balance'] > ($stock['current_price'] * $quantity)){
-                            $user_id = $user['id'];
-                            $stock_id = $stock['id'];
-                            $price = $stock['current_price'];
                             
                             //add row to transactions
                             $query = "INSERT INTO transaction ( user_id, stock_id, quantity, price) "
@@ -118,10 +162,10 @@ try{
                             
                             //bind values
                             $statement_users = $database->prepare($query);
-                            $statement_users->bindValue(":user_id", $user_id);
-                            $statement_users->bindValue(":stock_id", $stock_id);
+                            $statement_users->bindValue(":user_id", $user['id']);
+                            $statement_users->bindValue(":stock_id", $stock['id']);
                             $statement_users->bindValue(":quantity", $quantity);
-                            $statement_users->bindValue(":price", $price);
+                            $statement_users->bindValue(":price", $stock['current_price']);
 
                             if($statement_users->execute()){
                                 $statement_users->closeCursor();
@@ -129,13 +173,11 @@ try{
                                 //calculate user's new cash balance
                                 $cash_balance = $user['cash_balance'] - ($stock['current_price'] * $quantity);
 
-                                //update user cash balance
-                                $query = "update users set cash_balance = :cash_balance "
-                                    . "where id = :user_id";
+                                //update user's cash balance
+                                $query = "update users set cash_balance = :cash_balance where id = :user_id";
 
-                                //value binding in PDO protects against SQL injection
                                 $statement = $database->prepare($query);
-                                $statement->bindValue(":user_id", $user_id);
+                                $statement->bindValue(":user_id", $user['id']);
                                 $statement->bindValue(":cash_balance", $cash_balance);
 
                                 if($statement->execute()){
@@ -155,52 +197,82 @@ try{
         }
         
     }else if($action == "sell" && $transaction_id != "" ){
+        
         foreach($transactions as $transaction){
-            echo $transaction['id'];
-            if ($transaction['id'] == $transaction_id){
+            if ($transaction['id'] == $transaction_id){     //transaction matches users entry
+                $found_transaction = true;  //valid transaction id entered
+                
                 foreach($users as $user){
-                    if ($transaction['user_id'] == $user['id']){
+                    if ($transaction['user_id'] == $user['id']){    //user id of transaction matches id in user database
                         foreach($stocks as $stock){
-                            if ($transaction['stock_id'] == $stock['id']){
+                            if ($transaction['stock_id'] == $stock['id']){  //stock id matches id in stock database
+                                
+                                //calculate user's new cash balance
                                 $cash_balance = $user['cash_balance'] + ($stock['current_price'] * $transaction['quantity']);
                                 
-                                //update user cash balance
-                                $query = "update users set cash_balance = :cash_balance "
-                                    . "where id = :user_id";
+                                //update user's cash balance
+                                $query = "update users set cash_balance = :cash_balance where id = :user_id";
 
-                                //value binding in PDO protects against SQL injection
+                                //bind values
                                 $statement = $database->prepare($query);
                                 $statement->bindValue(":user_id", $user['id']);
                                 $statement->bindValue(":cash_balance", $cash_balance);
 
                                 if($statement->execute()){
                                     $statement->closeCursor();
+                                    
+                                    $query = "delete from transaction where id = :transaction_id";  //remove transaction
+
+                                    //bind values
+                                    $statement = $database->prepare($query);
+                                    $statement->bindValue(":transaction_id", $transaction_id);
+
+                                    $statement->execute();
+
+                                    $statement->closeCursor();
                                 }else {
                                     echo "<p>Error updating user's cash balance.</p>";
                                 }
-                            }else {
-                                echo "<p>Error after stocks foreach</p>";
-                            }
+                            }  
                         }
-                    }else {
-                        echo "<p>Error after users foreach</p>";
                     }
                 }
-            }else {
-                echo "<p>Error after transactions foreach</p>";
-            }  
+            }
         }
         
-        $query = "delete from transaction "
-               . "where id = :transaction_id";
+        if(!$found_transaction){    //user did not enter valid transaction
+            echo "<p>Transaction not found.</p>";
+        }
+    
+    }else if($action == "update_transaction" && $transaction_update != "" && $symbol_update != "" && $quantity_update != ""){
         
-        //bind values
-        $statement = $database->prepare($query);
-        $statement->bindValue(":transaction_id", $transaction_id);
+        foreach($transactions as $transaction){
+            if($transaction['id'] == $transaction_update){  //transaction matches users entry
+                $found_transaction = true;  //valid transaction id entered
+                foreach($stocks as $stock){
+                    if($stock['id'] == $transaction['stock_id']){   //stock id from transaction matches id of stock in database
+                
+                        $query = "update transaction set stock_id = :id_update, quantity = :quantity_update ";
+
+                        //bind values
+                        $statement = $database->prepare($query);
+                        $statement->bindValue(":id_update", $stock['id']);
+                        $statement->bindValue(":quantity_update", $quantity_update);
+
+                        if($statement->execute()){
+                            $statement->closeCursor();
+                        }else{
+                            echo "<p>Error updating transaction.</p>";
+                        }
+                    }
+                }
+            }
+        }
         
-        $statement->execute();
+        if(!$found_transaction){    //user did not enter valid transaction
+            echo "<p>Transaction not found.</p>";
+        }
         
-        $statement->closeCursor();
     } 
 } catch (Exception $e) {
     $error_message = $e->getMessage();
@@ -208,7 +280,7 @@ try{
 }
 
 
-    //get updated data
+    //get updated data for tables
     $stocks = fetchData($database, 'SELECT symbol, name, current_price, id FROM stocks');
     $users = fetchData($database, 'SELECT name, email_address, cash_balance, id FROM users');
     $transactions = fetchData($database, 'SELECT user_id, stock_id, quantity, price, timestamp, id FROM transaction');
@@ -224,6 +296,8 @@ try{
         <title></title>
     </head>
     <body>
+        
+        <!--table of available stocks-->
         <h2>Stock Database</h2>
         <table>
             <tr>
@@ -243,6 +317,7 @@ try{
             <?php endforeach; ?>
         </table>
         
+        <!--table of users-->
         <h2>User Database</h2>
         <table>
             <tr>
@@ -262,6 +337,7 @@ try{
             <?php endforeach; ?>
         </table>
         
+        <!--table of transactions-->
         <h2>Transactions</h2>
         <table>
             <tr>
@@ -270,7 +346,7 @@ try{
                 <th>Quantity</th>
                 <th>Price</th>
                 <th>Timestamp</th>
-                <th>Transaction ID</th>
+                <th>ID</th>
             </tr>
             <?php foreach($transactions as $transaction) : ?>
             <tr>
@@ -331,7 +407,29 @@ try{
             <input type="text" name="cash_balance"/><br>
             <input type="hidden" name='action' value='add_user'/>
             <label>&nbsp;</label>
-            <input type="submit" value="Add user"/>
+            <input type="submit" value="Add User"/>
+        </form>
+        
+        <h2>Update User</h2>
+        <form action="index.php" method="post">
+            <label>Name:</label>
+            <input type="text" name="name_update"/><br>
+            <label>Email Address:</label>
+            <input type="text" name="email_update"/><br>
+            <input type="hidden" name='action' value='update_user'/>
+            <label>&nbsp;</label>
+            <input type="submit" value="Update User"/>
+        </form>
+        
+        <h2>Delete User</h2>
+        <form action="index.php" method="post">
+            <label>Name:</label>
+            <input type="text" name="name_delete"/><br>
+            <label>Email:</label>
+            <input type="text" name="email_delete"/><br>
+            <input type="hidden" name='action' value='delete_user'/>
+            <label>&nbsp;</label>
+            <input type="submit" value="Delete User"/>
         </form>
         
         <h2>Add Transaction (Buy)</h2>
@@ -354,6 +452,19 @@ try{
             <input type="hidden" name='action' value='sell'/>
             <label>&nbsp;</label>
             <input type="submit" value="Sell"/>
+        </form>
+        
+        <h2>Update Transaction</h2>
+        <form action="index.php" method="post">
+            <label>Transaction ID:</label>
+            <input type="text" name="transaction_update"/><br>
+            <label>Symbol:</label>
+            <input type="text" name="symbol_update"/><br>
+            <label>Quantity:</label>
+            <input type="text" name="quantity_update"/><br>
+            <input type="hidden" name='action' value='update_transaction'/>
+            <label>&nbsp;</label>
+            <input type="submit" value="Update Transaction"/>
         </form>
 
     </body>

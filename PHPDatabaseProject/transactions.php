@@ -2,6 +2,7 @@
 
 try{
     
+    require_once 'utility/ensure_logged_in.php';
     require_once 'models/database.php';
     require_once 'models/transactions.php';
     require_once 'models/users.php';

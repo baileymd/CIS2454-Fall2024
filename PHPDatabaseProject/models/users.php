@@ -28,7 +28,7 @@ class User {
         return $this->id;
     }
 
-    public function set_name($name): void {
+    public function set_name($name){
         $this->name = $name;
     }
 
